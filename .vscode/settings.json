@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "*.ll": "llvm",
+        "atomic": "c",
+        "*.tcc": "c",
+        "fstream": "c",
+        "sstream": "c",
+        "iosfwd": "c",
+        "istream": "c",
+        "limits": "c",
+        "streambuf": "c"
+    }
+}
