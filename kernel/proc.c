@@ -243,7 +243,7 @@ userinit(void)
   p->cwd = namei("/");
 
   p->state = RUNNABLE;
-
+  //p->trace=0;
   release(&p->lock);
 }
 
@@ -289,6 +289,9 @@ fork(void)
   }
   np->sz = p->sz;
 
+  // for trace system call
+  np->trace = p->trace;
+  
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
@@ -653,4 +656,18 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+//get the number of non-UNUSED proc
+int
+getUsedProc()
+{
+  int n=0;
+  struct proc *p;
+  for(int i=0;i<NPROC;i++)
+  {
+    p=&proc[i];
+    if(p->state!=UNUSED)n++;
+  }
+  return n;
 }
