@@ -1,0 +1,5 @@
+1. folk()
+2. text data
+    guard page
+    stack
+    heap and other

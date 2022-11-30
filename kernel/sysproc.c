@@ -75,12 +75,35 @@ sys_sleep(void)
   return 0;
 }
 
-
 #ifdef LAB_PGTBL
+int MAXPG=32;
 int
 sys_pgaccess(void)
 {
   // lab pgtbl: your code here.
+  uint64 va,resva;
+  int n;
+  if (argaddr(0, &va) < 0) 
+    return -1;
+  if (argint(1, &n) < 0)
+    return -1;
+  if (argaddr(2, &resva) < 0) 
+    return -1;
+  if(n<=0||n>MAXPG){
+    return -1;
+  }
+  uint64 vadown=PGROUNDDOWN(va);
+  int ret=0;
+  pte_t* p; 
+  for (int i = 0; i < n; i++) {
+    p = walk(myproc()->pagetable, vadown, 0);
+    if (p == 0) return -1;
+    if ((*p) & PTE_A) ret |= (1 << i);
+    if ((*p) & PTE_A) (*p) ^= PTE_A;
+    vadown += PGSIZE;
+  }
+  if(copyout(myproc()->pagetable,resva,(char *)(&ret),sizeof(ret))<0)
+    return -1;
   return 0;
 }
 #endif
@@ -107,3 +130,4 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
