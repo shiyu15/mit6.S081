@@ -121,7 +121,8 @@ panic(char *s)
   printf("panic: ");
   printf(s);
   printf("\n");
-  panicked = 1; // freeze uart output from other CPUs
+  backtrace();
+  panicked = 1;  // freeze uart output from other CPUs
   for(;;)
     ;
 }
@@ -131,4 +132,22 @@ printfinit(void)
 {
   initlock(&pr.lock, "pr");
   pr.locking = 1;
+}
+
+void
+backtrace(void)
+{
+  uint64 *loc = (uint64 *)r_fp();
+  printf("backtrace:\n");
+  while (1) {
+
+      printf("(loc-1):%p  kstack:%p\n",
+             (loc - 1), 
+             myproc()->kstack);
+
+      printf("%p\n", *(loc - 1));
+      if (PGROUNDDOWN((uint64)(*(loc - 2))) != myproc()->kstack) break;
+      uint64 temp = *(loc - 2);
+      loc = (uint64 *)temp;
+  }
 }

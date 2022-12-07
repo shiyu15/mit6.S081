@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "syscall.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -62,7 +63,7 @@ usertrap(void)
 
     // an interrupt will change sstatus &c registers,
     // so don't enable until done with those registers.
-    intr_on();
+    if (p->trapframe->a7 != SYS_sigreturn) intr_on();
 
     syscall();
   } else if((which_dev = devintr()) != 0){
@@ -78,8 +79,25 @@ usertrap(void)
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
+  { 
+   
+    if((myproc()->ahandler!=0||myproc()->ainterval!=0)&&myproc()->oninterrupt==0)
+    {
+      if(myproc()->ainterval==myproc()->nowinterval){
+        w_sstatus(r_sstatus() & ~SSTATUS_SPIE);
+        myproc()->oninterrupt = 1;
+        myproc()->nowinterval = 0;
+        myproc()->formerepc = myproc()->trapframe->epc;
+        myproc()->trapframe->epc = myproc()->ahandler;
+        memmove(myproc()->tfcopy, myproc()->trapframe,
+                sizeof(struct trapframe));
+      }
+      else{
+        myproc()->nowinterval+=1;
+      }
+    }
     yield();
-
+  }
   usertrapret();
 }
 
@@ -121,7 +139,7 @@ usertrapret(void)
   // tell trampoline.S the user page table to switch to.
   uint64 satp = MAKE_SATP(p->pagetable);
 
-  // jump to trampoline.S at the top of memory, which 
+  // jump to trampoline.S at the top of memory, which
   // switches to the user page table, restores user registers,
   // and switches to user mode with sret.
   uint64 fn = TRAMPOLINE + (userret - trampoline);
