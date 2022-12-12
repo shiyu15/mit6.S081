@@ -23,11 +23,18 @@ struct {
   struct run *freelist;
 } kmem;
 
+// physical page referrence count
+// prepare ref counts of 128MB/4KB physical pages
+uint8 refcount[(PHYSTOP - KERNBASE) / PGSIZE];
+
+
 void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
   freerange(end, (void*)PHYSTOP);
+  // set all physical page ref count to 0
+  memset(refcount, 0, (PHYSTOP - KERNBASE) / PGSIZE);
 }
 
 void
@@ -36,7 +43,7 @@ freerange(void *pa_start, void *pa_end)
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
   for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
-    kfree(p);
+    previous_kfree(p);
 }
 
 // Free the page of physical memory pointed at by v,
@@ -51,15 +58,23 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
-  // Fill with junk to catch dangling refs.
-  memset(pa, 1, PGSIZE);
+  if(refcount[((uint64)pa - KERNBASE) / PGSIZE]>0)
+    refcount[((uint64)pa - KERNBASE) / PGSIZE]--;
+  else {
+    printf("error kfree\n id%p recount%p\n", ((uint64)pa - KERNBASE) / PGSIZE,
+           refcount[((uint64)pa - KERNBASE) / PGSIZE]);
+  }
+  if (refcount[((uint64)pa- KERNBASE ) / PGSIZE] == 0) {
+    // Fill with junk to catch dangling refs.
+    memset(pa, 1, PGSIZE);
 
-  r = (struct run*)pa;
+    r = (struct run*)pa;
 
-  acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
-  release(&kmem.lock);
+    acquire(&kmem.lock);
+    r->next = kmem.freelist;
+    kmem.freelist = r;
+    release(&kmem.lock);
+  }
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -79,4 +94,24 @@ kalloc(void)
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
+}
+
+void previous_kfree(void *pa) {
+  struct run *r;
+
+  if (((uint64)pa % PGSIZE) != 0 || (char *)pa < end || (uint64)pa >= PHYSTOP)
+    panic("kfree");
+
+  // printf("kfree:pa:%p pa/PGSIZE:%p\n", pa,
+  //        (uint64)pa / PGSIZE);
+    // Fill with junk to catch dangling refs.
+    memset(pa, 1, PGSIZE);
+
+    r = (struct run *)pa;
+
+    acquire(&kmem.lock);
+    r->next = kmem.freelist;
+    kmem.freelist = r;
+    release(&kmem.lock);
+  
 }

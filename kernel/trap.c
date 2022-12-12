@@ -16,6 +16,8 @@ void kernelvec();
 
 extern int devintr();
 
+extern uint8 refcount[];
+
 void
 trapinit(void)
 {
@@ -65,7 +67,44 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
+  } else if (r_scause() == 15) {
+    pte_t *pte;
+    uint64 oldpa, va, flags;
+    char *newpa;
+    int kill=0;
+    va = r_stval();  // get the page write va
+    if(va>=MAXVA){
+      kill=1;
+      goto err;
+    }
+      
+    if ((pte = walk(p->pagetable, va, 0)) == 0) {
+        panic("usertrap:pte should exist\n");
+    }
+    if (((*pte) & PTE_COW_WRITABLE) && ((*pte) & PTE_COW)) {
+        // in a cow write page fault
+        oldpa = PTE2PA(*pte);
+        flags = PTE_FLAGS(*pte);
+        if ((newpa = kalloc()) == 0) {
+            // if there is no free memory
+            printf("usertrap: cow cannot  kalloc\n");
+            kill=1;
+            goto err;
+        }
+        refcount[((uint64)newpa - KERNBASE) / PGSIZE] = 1;
+        memmove(newpa, (char *)oldpa, PGSIZE);
+        flags = ((flags & (~PTE_COW)) & (~PTE_COW_WRITABLE)) | (PTE_W);
+        uvmunmap(p->pagetable,PGROUNDDOWN(va),1,1);
+        mappages(p->pagetable,PGROUNDDOWN(va),PGSIZE,(uint64)newpa,flags);
+        err:
+        if(kill==1)
+          p->killed = 1;
+    } else {
+        // not a cow write page fault
+        p->killed = 1;
+    }
+
+  } else if ((which_dev = devintr()) != 0) {
     // ok
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);

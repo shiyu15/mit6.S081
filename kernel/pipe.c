@@ -18,7 +18,8 @@ struct pipe {
   int readopen;   // read fd is still open
   int writeopen;  // write fd is still open
 };
-
+#include "memlayout.h"
+extern uint8 refcount[];
 int
 pipealloc(struct file **f0, struct file **f1)
 {
@@ -30,6 +31,8 @@ pipealloc(struct file **f0, struct file **f1)
     goto bad;
   if((pi = (struct pipe*)kalloc()) == 0)
     goto bad;
+  refcount[((uint64)pi - KERNBASE )/ PGSIZE] = 1;
+
   pi->readopen = 1;
   pi->writeopen = 1;
   pi->nwrite = 0;
@@ -68,7 +71,9 @@ pipeclose(struct pipe *pi, int writable)
   }
   if(pi->readopen == 0 && pi->writeopen == 0){
     release(&pi->lock);
-    kfree((char*)pi);
+    //refcount[(uint64)pi] --;
+    //if(refcount[(uint64)pi]==0)
+      kfree((char*)pi);
   } else
     release(&pi->lock);
 }

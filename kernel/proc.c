@@ -20,6 +20,7 @@ static void freeproc(struct proc *p);
 
 extern char trampoline[]; // trampoline.S
 
+extern uint8 refcount[];
 // helps ensure that wakeups of wait()ing
 // parents are not lost. helps obey the
 // memory model when using p->parent.
@@ -37,6 +38,7 @@ proc_mapstacks(pagetable_t kpgtbl) {
     char *pa = kalloc();
     if(pa == 0)
       panic("kalloc");
+    refcount[((uint64)pa - KERNBASE) / PGSIZE] = 1;
     uint64 va = KSTACK((int) (p - proc));
     kvmmap(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
   }
@@ -126,6 +128,7 @@ found:
     release(&p->lock);
     return 0;
   }
+  refcount[((uint64)(p->trapframe) - KERNBASE) / PGSIZE] = 1;
 
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
@@ -341,8 +344,11 @@ exit(int status)
 {
   struct proc *p = myproc();
 
+  //printf("pid:%d initpid:%d\n", p->pid, initproc->pid);
   if(p == initproc)
+  {
     panic("init exiting");
+  }
 
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){

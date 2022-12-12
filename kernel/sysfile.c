@@ -16,6 +16,8 @@
 #include "file.h"
 #include "fcntl.h"
 
+#include "memlayout.h"
+uint8 extern refcount[];
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 static int
@@ -437,14 +439,16 @@ sys_exec(void)
     argv[i] = kalloc();
     if(argv[i] == 0)
       goto bad;
+    refcount[((uint64)argv[i] - KERNBASE)/ PGSIZE] = 1;
     if(fetchstr(uarg, argv[i], PGSIZE) < 0)
       goto bad;
   }
 
   int ret = exec(path, argv);
 
-  for(i = 0; i < NELEM(argv) && argv[i] != 0; i++)
-    kfree(argv[i]);
+  for(i = 0; i < NELEM(argv) && argv[i] != 0; i++){
+      kfree(argv[i]);
+  }
 
   return ret;
 
