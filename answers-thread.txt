@@ -1,0 +1,11 @@
+thread_switch needs to save/restore only the callee-save registers. Why? 
+
+caller-saved 寄存器由编译器在调用时在调用程序中保存。
+
+Why are there missing keys with 2 threads, 
+but not with 1 thread? Identify a sequence of events 
+with 2 threads that can lead to a key being missing. 
+Submit your sequence with a short explanation in answers-thread.txt 
+
+missing的项是因为链表中没有这个key，而不是value对不上。
+两个线程同时调用insert函数向一个链表头插入新的节点时，先插入的节点可能不会被后插入的节点的next指针指向。
