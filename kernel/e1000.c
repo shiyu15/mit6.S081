@@ -102,7 +102,36 @@ e1000_transmit(struct mbuf *m)
   // the TX descriptor ring so that the e1000 sends it. Stash
   // a pointer so that it can be freed after sending.
   //
+  printf("m->head:%s m->len:%d m->buf:%s\n", (m->head), m->len, m->buf);
+  if(regs[E1000_TDT]>=16)
+    return -1;
+  if (tx_ring[regs[E1000_TDT]].status & ~E1000_TXD_STAT_DD) 
+    return -1;
+  //printf("-0.5regs[E1000_TDT]:%d\n", regs[E1000_TDT]);
+  if ((uint64)tx_mbufs[regs[E1000_TDT]] != 0)
+    mbuffree(tx_mbufs[regs[E1000_TDT]]);
+  tx_mbufs[regs[E1000_TDT]]=m;
+
+
+  //printf("0regs[E1000_TDT]:%d\n", regs[E1000_TDT]);
+  // tx_mbufs[regs[E1000_TDT]] = mbufalloc(MBUF_DEFAULT_HEADROOM);
+  // if ((uint64)tx_mbufs[regs[E1000_TDT]]==0)
+  //   return -1;
+
+  // tx_mbufs[regs[E1000_TDT]]->head = m->head;
+  // tx_mbufs[regs[E1000_TDT]]->len = m->len;
+  // memmove(tx_mbufs[regs[E1000_TDT]]->buf,m->buf,sizeof(m->buf));
   
+  tx_ring[regs[E1000_TDT]].addr = (uint64)m;
+  tx_ring[regs[E1000_TDT]].length=m->len;
+  tx_ring[regs[E1000_TDT]].cmd = E1000_TXD_CMD_RS | E1000_TXD_CMD_EOP;
+  tx_ring[regs[E1000_TDT]].status &= ~E1000_TXD_STAT_DD;
+
+
+  regs[E1000_TDT] = (regs[E1000_TDT] + 1) % TX_RING_SIZE;
+  printf("regs[E1000_TDT]:%d\n", regs[E1000_TDT]);
+  printf("status:%d cmd:%d\n", tx_ring[regs[E1000_TDT]-1].status,
+         tx_ring[regs[E1000_TDT]-1].cmd);
   return 0;
 }
 
